@@ -1,0 +1,325 @@
+{% load cart_filters %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDV - Loja de Materiais de Construção</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f0f2f5;
+        }
+
+        .header {
+            background-color: #27ae60;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+        }
+
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        .left-panel {
+            width: 35%;
+            background-color: white;
+            border-right: 1px solid #ddd;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            text-align: center;
+            background-color: #ddd;
+            cursor: default;
+            font-weight: bold;
+        }
+
+        .tab.active {
+            background-color: #27ae60;
+            color: white;
+            border-bottom: 3px solid #1e8449;
+        }
+
+        .product-search {
+            margin-bottom: 20px;
+        }
+
+        .product-search select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .product-search input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .add-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .add-btn:hover {
+            background-color: #219a52;
+        }
+
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cart-items {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .empty-cart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .empty-cart svg {
+            width: 150px;
+            height: 150px;
+            opacity: 0.5;
+            margin-bottom: 20px;
+        }
+
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .item-info {
+            flex: 1;
+        }
+
+        .item-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .item-details {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .item-subtotal {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-right: 20px;
+        }
+
+        .remove-item {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .bottom-bar {
+            background-color: white;
+            border-top: 1px solid #ddd;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .total-display {
+            font-size: 24px;
+        }
+
+        .total-label {
+            color: #666;
+        }
+
+        .total-value {
+            font-weight: bold;
+            color: #27ae60;
+            font-size: 32px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+        }
+
+        .action-btn {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .action-btn.cancel {
+            background-color: white;
+            color: #e74c3c;
+            border: 2px solid #e74c3c;
+        }
+
+        .action-btn.cancel:hover {
+            background-color: #fdecea;
+        }
+
+        .action-btn.finalize {
+            background-color: #27ae60;
+            color: white;
+        }
+
+        .action-btn.finalize:hover {
+            background-color: #219a52;
+        }
+
+        .action-btn.finalize:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛒 PDV </h1>
+    </div>
+
+    <form method="post" action="{% url 'add_to_cart' 0 %}" id="addForm">
+        {% csrf_token %}
+        <div class="main-container">
+            <div class="left-panel">
+                <div class="tabs">
+                    <div class="tab active">Produto</div>
+                    <div class="tab">Cliente</div>
+                    <div class="tab">Pagamento</div>
+                </div>
+
+                <div class="product-search">
+                    <label for="produto_select" style="display: block; margin-bottom: 5px; color: #666;">Selecione o Produto:</label>
+                    <select id="produto_select" name="produto_id" required>
+                        <option value="">-- Escolha um produto --</option>
+                        {% for produto in produtos %}
+                        <option value="{{ produto.id }}" data-preco="{{ produto.preco }}" data-unidade="{{ produto.unidade }}">
+                            {{ produto.nome }} - R${{ produto.preco|floatformat:2 }}/{{ produto.unidade }}
+                        </option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="quantidade_input" style="display: block; margin-bottom: 5px; color: #666;">Quantidade:</label>
+                    <input type="number" id="quantidade_input" name="quantidade" min="1" value="1" required>
+
+                    <button type="submit" class="add-btn" onclick="updateFormAction()">➕ Inserir Produto</button>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="cart-items">
+                    {% if cart %}
+                        {% for produto_id, quantity in cart.items %}
+                            {% with produto=produtos|get_item:produto_id %}
+                            {% if produto %}
+                            <div class="cart-item">
+                                <div class="item-info">
+                                    <div class="item-name">{{ produto.nome }}</div>
+                                    <div class="item-details">
+                                        {{ quantity }} x {{ produto.unidade }}  •  R${{ produto.preco|floatformat:2 }}/{{ produto.unidade }}
+                                    </div>
+                                </div>
+                                <div class="item-subtotal">R${{ produto.preco|mul:quantity|floatformat:2 }}</div>
+                                <a href="{% url 'remove_from_cart' produto.id %}" class="remove-item">Remover</a>
+                            </div>
+                            {% endif %}
+                            {% endwith %}
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-cart">
+                            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 6L7.5 18H16.5L18 6H6Z" fill="currentColor" fill-opacity="0.4"/>
+                                <path d="M9 21C9 21.5523 8.55228 22 8 22C7.44772 22 7 21.5523 7 21C7 20.4477 7.44772 20 8 20C8.55228 20 9 20.4477 9 21Z" fill="currentColor" fill-opacity="0.4"/>
+                                <path d="M17 21C17 21.5523 16.5523 22 16 22C15.4477 22 15 21.5523 15 21C15 20.4477 15.4477 20 16 20C16.5523 20 17 20.4477 17 21Z" fill="currentColor" fill-opacity="0.4"/>
+                                <path d="M4 4H6L9 18H18L21 7H7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                            <p>Nenhum produto adicionado</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="bottom-bar">
+                    <div class="action-buttons">
+                        <a href="{% url 'clear_cart' %}" class="action-btn cancel">🗑️ Excluir Venda</a>
+                    </div>
+                    <div class="total-display">
+                        <span class="total-label">Total</span>
+                        <span class="total-value">R${{ total|floatformat:2 }}</span>
+                    </div>
+                    <div class="action-buttons">
+                        <a href="{% url 'finalizar_compra' %}" class="action-btn finalize" {% if not cart %}disabled{% endif %}>💸 Finalizar Venda</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <script>
+        function updateFormAction() {
+            const select = document.getElementById('produto_select');
+            const produtoId = select.value;
+            const form = document.getElementById('addForm');
+            if (produtoId) {
+                form.action = `/add/${produtoId}/`;
+            }
+        }
+    </script>
+</body>
+</html>

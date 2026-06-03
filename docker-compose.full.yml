@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  # Banco de dados compartilhado ou para cada serviço
+  db-products:
+    image: postgres:15
+    container_name: ecommerce-db-products
+    environment:
+      POSTGRES_DB: products_db
+      POSTGRES_USER: products_user
+      POSTGRES_PASSWORD: products_pass
+    volumes:
+      - postgres_products_data:/var/lib/postgresql/data/
+    ports:
+      - "5432:5432"
+
+  db-orders:
+    image: postgres:15
+    container_name: ecommerce-db-orders
+    environment:
+      POSTGRES_DB: orders_db
+      POSTGRES_USER: orders_user
+      POSTGRES_PASSWORD: orders_pass
+    volumes:
+      - postgres_orders_data:/var/lib/postgresql/data/
+    ports:
+      - "5433:5432"
+
+  # Serviço de Produtos
+  products-service:
+    build:
+      context: services/products
+      dockerfile: Dockerfile
+    container_name: products-service
+    ports:
+      - "8001:8000"
+    depends_on:
+      - db-products
+    environment:
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=products_db
+      - DB_USER=products_user
+      - DB_PASSWORD=products_pass
+      - DB_HOST=db-products
+      - DB_PORT=5432
+    volumes:
+      - ./services/products:/app
+
+  # Serviço de Pedidos
+  orders-service:
+    build:
+      context: services/orders
+      dockerfile: Dockerfile
+    container_name: orders-service
+    ports:
+      - "8002:8000"
+    depends_on:
+      - db-orders
+    environment:
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=orders_db
+      - DB_USER=orders_user
+      - DB_PASSWORD=orders_pass
+      - DB_HOST=db-orders
+      - DB_PORT=5432
+    volumes:
+      - ./services/orders:/app
+
+  # Gateway/Frontend (usamos o monólito original como gateway)
+  gateway-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.gateway
+    container_name: gateway-service
+    ports:
+      - "8000:8000"
+    depends_on:
+      - products-service
+      - orders-service
+    volumes:
+      - .:/app
+    environment:
+      - PRODUCTS_SERVICE_URL=http://products-service:8000
+      - ORDERS_SERVICE_URL=http://orders-service:8000
+
+volumes:
+  postgres_products_data:
+  postgres_orders_data:
