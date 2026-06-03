@@ -49,3 +49,9 @@ docker-compose.override.yml
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Documentos
+*.docx
+*.doc
+*.pdf
+*.odt
