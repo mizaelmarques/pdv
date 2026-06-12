@@ -3,42 +3,78 @@ from decimal import Decimal
 from compras.application.services import OrderService
 from compras.infrastructure.django import DjangoProductRepository, DjangoOrderRepository
 from compras.models import Produto
+import os
 
 
-def _get_order_service() -> OrderService:
+# Flag para usar microserviços (ou fallback para monólito)
+USE_MICROSERVICES = os.getenv('USE_MICROSERVICES', 'false').lower() == 'true'
+
+if USE_MICROSERVICES:
+    from compras.infrastructure.django.resilience import (
+        ResilientProductService,
+        ResilientOrderService
+    )
+
+
+def _get_order_service():
     product_repo = DjangoProductRepository()
     order_repo = DjangoOrderRepository()
     return OrderService(product_repo, order_repo)
 
 
 def produto_list(request):
-    service = _get_order_service()
-    products = service.get_all_products()
+    if USE_MICROSERVICES:
+        # Modo microserviços
+        product_service = ResilientProductService()
+        products = product_service.get_all_products()
+        
+        cart = request.session.get('cart', {})
+        total = Decimal('0.00')
+        
+        for product_id_str, quantity in cart.items():
+            product_id = int(product_id_str)
+            product = product_service.get_product_by_id(product_id)
+            if product:
+                total += Decimal(str(product['price'])) * Decimal(str(quantity))
+        
+        produtos_compat = [
+            Produto(
+                id=p['id'],
+                nome=p['name'],
+                descricao=p['description'],
+                preco=Decimal(str(p['price'])),
+                unidade=p['unit']
+            )
+            for p in products
+        ]
+    else:
+        # Modo monólito
+        service = _get_order_service()
+        products = service.get_all_products()
+        
+        cart = request.session.get('cart', {})
+        total = Decimal('0.00')
+        
+        for product_id_str, quantity in cart.items():
+            product = service.get_product_by_id(int(product_id_str))
+            if product:
+                total += product.price * Decimal(str(quantity))
+        
+        produtos_compat = [
+            Produto(
+                id=p.id,
+                nome=p.name,
+                descricao=p.description,
+                preco=p.price,
+                unidade=p.unit
+            )
+            for p in products
+        ]
     
-    cart = request.session.get('cart', {})
-    total = Decimal('0.00')
-    
-    for product_id_str, quantity in cart.items():
-        product = service.get_product_by_id(int(product_id_str))
-        if product:
-            total += product.price * Decimal(str(quantity))
-
-    # Converte products para o formato que o template espera (compatibilidade)
-    produtos_compat = [
-        Produto(
-            id=p.id,
-            nome=p.name,
-            descricao=p.description,
-            preco=p.price,
-            unidade=p.unit
-        )
-        for p in products
-    ]
-
     return render(request, 'compras/produto_list.html', {
         'produtos': produtos_compat,
         'cart': cart,
-        'total': float(total)
+        'total': float(round(total, 2))
     })
 
 
@@ -84,15 +120,34 @@ def finalizar_compra(request):
     if not cart:
         return redirect('produto_list')
 
-    service = _get_order_service()
+    if USE_MICROSERVICES:
+        # Modo microserviços
+        product_service = ResilientProductService()
+        order_service = ResilientOrderService()
+        
+        total = Decimal('0.00')
+        for product_id_str, quantity in cart.items():
+            product = product_service.get_product_by_id(int(product_id_str))
+            if product:
+                total += Decimal(str(product['price'])) * Decimal(str(quantity))
+        
+        order_data = {
+            "order_number": 999,
+            "total_amount": float(round(total, 2)),
+            "items": cart
+        }
+        order = order_service.create_order(order_data)
+        request.session['pedido_id'] = order.get('id', 'TEMP')
+        request.session['valor_total'] = order.get('total_amount', float(total))
+    else:
+        # Modo monólito
+        service = _get_order_service()
+        cart_items = {int(k): v for k, v in cart.items()}
+        order = service.create_order(cart_items)
+        request.session['pedido_id'] = order.number
+        request.session['valor_total'] = float(order.total)
     
-    cart_items = {int(k): v for k, v in cart.items()}
-    order = service.create_order(cart_items)
-
-    request.session['pedido_id'] = order.number
-    request.session['valor_total'] = float(order.total)
     request.session['cart'] = {}
-
     return redirect('checkout')
 
 
@@ -112,7 +167,7 @@ def index(request):
             resultado.append("Conectando ao ambiente de Produção usando a URL: https://api.pagamentos.com/v1")
             
             pagamento_msg = service.finalize_order(
-                order_number=int(pedido_id),
+                order_number=int(pedido_id) if str(pedido_id).isdigit() else 0,
                 amount=valor_dec,
                 payment_type=forma_pagto
             )

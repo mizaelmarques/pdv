@@ -82,6 +82,7 @@ services:
     environment:
       - PRODUCTS_SERVICE_URL=http://products-service:8000
       - ORDERS_SERVICE_URL=http://orders-service:8000
+      - USE_MICROSERVICES=true
 
 volumes:
   postgres_products_data:

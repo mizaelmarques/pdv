@@ -1,4 +1,7 @@
-Django>=6.0,<7.0
+Django>=5.0,<6.0
 psycopg2-binary>=2.9,<3.0
 behave>=1.2.6,<2.0
 djangorestframework>=3.15,<4.0
+pybreaker>=1.0,<2.0  # Circuit Breaker
+tenacity>=8.2,<9.0    # Retries
+requests>=2.31,<3.0   # HTTP Client melhorado
