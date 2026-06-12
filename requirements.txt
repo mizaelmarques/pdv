@@ -5,3 +5,5 @@ djangorestframework>=3.15,<4.0
 pybreaker>=1.0,<2.0  # Circuit Breaker
 tenacity>=8.2,<9.0    # Retries
 requests>=2.31,<3.0   # HTTP Client melhorado
+gunicorn>=21.0.0      # Servidor WSGI para produção
+whitenoise>=6.6.0     # Para servir arquivos estáticos
